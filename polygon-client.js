@@ -1,5 +1,4 @@
-
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 class PolygonClient {
   constructor(apiKey) {
@@ -158,4 +157,4 @@ class PolygonClient {
   }
 }
 
-module.exports = { PolygonClient };
+export { PolygonClient };
