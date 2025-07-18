@@ -1,160 +1,149 @@
-import fetch from 'node-fetch';
+const axios = require('axios');
 
 class PolygonClient {
-  constructor(apiKey) {
-    this.apiKey = apiKey;
-    this.baseUrl = 'https://api.polygon.io';
-  }
-
-  // Map trading symbols to Polygon.io format
-  mapSymbolToPolygon(symbol) {
-    const symbolMap = {
-      'XAUUSD': 'C:XAUUSD',
-      'EURUSD': 'C:EURUSD',
-      'GBPUSD': 'C:GBPUSD',
-      'USDJPY': 'C:USDJPY',
-      'USDCHF': 'C:USDCHF',
-      'AUDUSD': 'C:AUDUSD',
-      'USDCAD': 'C:USDCAD',
-      'NZDUSD': 'C:NZDUSD',
-      'EURJPY': 'C:EURJPY',
-      'GBPJPY': 'C:GBPJPY',
-      'EURGBP': 'C:EURGBP',
-      'EURCHF': 'C:EURCHF',
-      'GBPCHF': 'C:GBPCHF',
-      'AUDJPY': 'C:AUDJPY',
-      'CADJPY': 'C:CADJPY',
-      'CHFJPY': 'C:CHFJPY'
-    };
-    
-    return symbolMap[symbol.toUpperCase()] || `C:${symbol.toUpperCase()}`;
-  }
-
-  // Map timeframes to Polygon.io multiplier and timespan
-  mapTimeframeToPolygon(timeframe) {
-    const timeframeMap = {
-      'M1': { multiplier: 1, timespan: 'minute' },
-      'M15': { multiplier: 15, timespan: 'minute' },
-      'H1': { multiplier: 1, timespan: 'hour' },
-      'H4': { multiplier: 4, timespan: 'hour' },
-      'D1': { multiplier: 1, timespan: 'day' }
-    };
-    
-    return timeframeMap[timeframe.toUpperCase()] || { multiplier: 1, timespan: 'hour' };
-  }
-
-  // Get historical aggregates (candlestick data)
-  async getCandles(symbol, timeframe, from, to) {
-    try {
-      const polygonSymbol = this.mapSymbolToPolygon(symbol);
-      const { multiplier, timespan } = this.mapTimeframeToPolygon(timeframe);
-      
-      // Format dates for Polygon.io API
-      const fromDate = from.toISOString().split('T')[0];
-      const toDate = to.toISOString().split('T')[0];
-      
-      const url = `${this.baseUrl}/v2/aggs/ticker/${polygonSymbol}/range/${multiplier}/${timespan}/${fromDate}/${toDate}`;
-      const params = new URLSearchParams({
-        adjusted: 'true',
-        sort: 'asc',
-        limit: '50000',
-        apikey: this.apiKey
-      });
-
-      console.log(`🔍 Polygon.io API call: ${url}?${params}`);
-      
-      const response = await fetch(`${url}?${params}`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ Polygon.io API error (${response.status}):`, errorText);
-        throw new Error(`Polygon.io API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.status !== 'OK') {
-        console.warn(`⚠️ Polygon.io API warning:`, data);
-        return [];
-      }
-
-      if (!data.results || data.results.length === 0) {
-        console.warn(`⚠️ No data returned for ${symbol} ${timeframe}`);
-        return [];
-      }
-
-      // Convert Polygon.io format to your existing format
-      const candles = data.results.map(bar => ({
-        timestamp: new Date(bar.t).toISOString(),
-        open: bar.o,
-        high: bar.h,
-        low: bar.l,
-        close: bar.c,
-        volume: bar.v || 0
-      }));
-
-      console.log(`✅ Retrieved ${candles.length} candles for ${symbol} ${timeframe}`);
-      return candles;
-
-    } catch (error) {
-      console.error(`❌ Error fetching candles for ${symbol} ${timeframe}:`, error);
-      throw error;
+    constructor(apiKey) {
+        this.apiKey = apiKey;
+        this.baseUrl = 'https://api.polygon.io';
     }
-  }
 
-  // Get current/latest price
-  async getCurrentPrice(symbol) {
-    try {
-      const polygonSymbol = this.mapSymbolToPolygon(symbol);
-      
-      const url = `${this.baseUrl}/v2/last/trade/${polygonSymbol}`;
-      const params = new URLSearchParams({
-        apikey: this.apiKey
-      });
+    async getCandles(symbol, timeframe, from, to) {
+        try {
+            // Validate inputs
+            if (!symbol || !timeframe || !from || !to) {
+                throw new Error('Missing required parameters: symbol, timeframe, from, to');
+            }
 
-      const response = await fetch(`${url}?${params}`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ Polygon.io price API error (${response.status}):`, errorText);
-        throw new Error(`Polygon.io price API error: ${response.status} - ${errorText}`);
-      }
+            // Convert timeframe to polygon.io format
+            let multiplier = 1;
+            let timespan = 'minute';
+            
+            switch(timeframe) {
+                case 'M1':
+                    multiplier = 1;
+                    timespan = 'minute';
+                    break;
+                case 'M5':
+                    multiplier = 5;
+                    timespan = 'minute';
+                    break;
+                case 'M15':
+                    multiplier = 15;
+                    timespan = 'minute';
+                    break;
+                case 'M30':
+                    multiplier = 30;
+                    timespan = 'minute';
+                    break;
+                case 'H1':
+                    multiplier = 1;
+                    timespan = 'hour';
+                    break;
+                case 'H4':
+                    multiplier = 4;
+                    timespan = 'hour';
+                    break;
+                case 'D1':
+                    multiplier = 1;
+                    timespan = 'day';
+                    break;
+                default:
+                    console.warn(`⚠️ Unknown timeframe ${timeframe}, defaulting to M1`);
+                    multiplier = 1;
+                    timespan = 'minute';
+            }
 
-      const data = await response.json();
-      
-      if (data.status !== 'OK' || !data.results) {
-        console.warn(`⚠️ No current price available for ${symbol}`);
-        return null;
-      }
+            const fromDate = from.toISOString().split('T')[0];
+            const toDate = to.toISOString().split('T')[0];
 
-      return data.results.p; // Price from the latest trade
+            const url = `${this.baseUrl}/v2/aggs/ticker/${symbol}/range/${multiplier}/${timespan}/${fromDate}/${toDate}`;
+            
+            console.log(`📡 Fetching ${symbol} ${timeframe} data from Polygon.io`);
 
-    } catch (error) {
-      console.error(`❌ Error fetching current price for ${symbol}:`, error);
-      throw error;
+            const response = await axios.get(url, {
+                params: {
+                    apikey: this.apiKey,
+                    adjusted: true,
+                    sort: 'asc',
+                    limit: 50000
+                },
+                timeout: 45000,
+                headers: {
+                    'User-Agent': 'polygon-trading-api/1.0.0'
+                }
+            });
+
+            if (response.data && response.data.results) {
+                const candles = response.data.results.map(item => ({
+                    timestamp: new Date(item.t),
+                    open: item.o,
+                    high: item.h,
+                    low: item.l,
+                    close: item.c,
+                    volume: item.v || 0
+                }));
+
+                console.log(`✅ Retrieved ${candles.length} candles for ${symbol} ${timeframe}`);
+                return candles;
+            } else {
+                console.warn(`⚠️ No data returned for ${symbol} ${timeframe}`);
+                return [];
+            }
+
+        } catch (error) {
+            console.error(`❌ Error fetching candles for ${symbol}:`, error.message);
+            if (error.response) {
+                console.error('Response status:', error.response.status);
+                console.error('Response data:', error.response.data);
+            }
+            throw new Error(`Failed to fetch ${symbol} data: ${error.message}`);
+        }
     }
-  }
 
-  // Alternative method using aggregates for current price (more reliable for forex)
-  async getCurrentPriceFromAggregates(symbol) {
-    try {
-      const now = new Date();
-      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      
-      const candles = await this.getCandles(symbol, 'M1', yesterday, now);
-      
-      if (candles.length === 0) {
-        return null;
-      }
-      
-      // Return the close price of the latest candle
-      return candles[candles.length - 1].close;
+    async getCurrentPrice(symbol) {
+        try {
+            const url = `${this.baseUrl}/v2/last/trade/${symbol}`;
+            
+            const response = await axios.get(url, {
+                params: {
+                    apikey: this.apiKey
+                },
+                timeout: 10000
+            });
 
-    } catch (error) {
-      console.error(`❌ Error fetching current price via aggregates for ${symbol}:`, error);
-      return null;
+            if (response.data && response.data.results) {
+                return {
+                    price: response.data.results.p,
+                    timestamp: new Date(response.data.results.t),
+                    size: response.data.results.s
+                };
+            } else {
+                throw new Error('No price data available');
+            }
+
+        } catch (error) {
+            console.error(`❌ Error fetching current price for ${symbol}:`, error.message);
+            throw new Error(`Failed to fetch current price: ${error.message}`);
+        }
     }
-  }
+
+    async getMarketStatus() {
+        try {
+            const url = `${this.baseUrl}/v1/marketstatus/now`;
+            
+            const response = await axios.get(url, {
+                params: {
+                    apikey: this.apiKey
+                },
+                timeout: 10000
+            });
+
+            return response.data;
+
+        } catch (error) {
+            console.error('❌ Error fetching market status:', error.message);
+            throw new Error(`Failed to fetch market status: ${error.message}`);
+        }
+    }
 }
 
-export { PolygonClient };
+module.exports = { PolygonClient };
