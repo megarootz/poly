@@ -116,11 +116,15 @@ npm run dev
    - ❌ Error: `require is not defined in ES module scope`
    - ✅ Fixed: Added `"type": "commonjs"` dalam package.json
 
-2. **Timeout Issues**:
+2. **Missing Dependencies Error**:
+   - ❌ Error: `Cannot find module 'technicalindicators'`
+   - ✅ Fixed: Added technicalindicators dependency dalam package.json
+
+3. **Timeout Issues**:
    - ✅ Increased API timeout untuk Polygon.io requests
    - ✅ Added proper error handling untuk network issues
 
-3. **Process Management**:
+4. **Process Management**:
    - ✅ Added graceful shutdown handling
    - ✅ Proper error logging untuk debugging
 
