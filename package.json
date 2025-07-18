@@ -1,6 +1,7 @@
 {
   "name": "polygon-trading-api",
   "version": "1.0.0",
+  "type": "module",
   "description": "Trading analysis API using Polygon.io",
   "main": "app.js",
   "type": "commonjs",
