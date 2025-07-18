@@ -1,6 +1,21 @@
 // Technical Analysis Strategy Module
 // All indicators implemented manually without external dependencies
 
+
+
+// ... (rest of the file remains the same)
+
+export {
+    analyzeStrategy,
+    calculateSMA,
+    calculateEMA,
+    calculateRSI,
+    calculateMACD,
+    detectTrend,
+    generateSignal
+};
+
+// Add this line at the top of the file
 function calculateSMA(data, period) {
     if (data.length < period) return [];
     
@@ -11,6 +26,8 @@ function calculateSMA(data, period) {
     }
     return sma;
 }
+
+// ... (rest of the file remains the same)
 
 function calculateEMA(data, period) {
     if (data.length < period) return [];
