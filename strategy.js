@@ -1,277 +1,229 @@
+// Technical Analysis Strategy Module
+// All indicators implemented manually without external dependencies
 
-const technicalindicators = require('technicalindicators');
-
-// Helper: Find significant support/resistance levels
-function findSignificantLevels(highs, lows, closingPrices, period = 50) {
-  const significantLevels = [];
-  const pivotHighs = [];
-  const pivotLows = [];
-
-  // Identifikasi pivot points
-  for (let i = period; i < highs.length - period; i++) {
-    const highWindow = highs.slice(i - period, i + period + 1);
-    const lowWindow = lows.slice(i - period, i + period + 1);
+function calculateSMA(data, period) {
+    if (data.length < period) return [];
     
-    if (highs[i] === Math.max(...highWindow)) {
-      pivotHighs.push(highs[i]);
+    const sma = [];
+    for (let i = period - 1; i < data.length; i++) {
+        const sum = data.slice(i - period + 1, i + 1).reduce((acc, val) => acc + val.close, 0);
+        sma.push(sum / period);
     }
-    
-    if (lows[i] === Math.min(...lowWindow)) {
-      pivotLows.push(lows[i]);
-    }
-  }
-
-  // Gabungkan dan urutkan level signifikan
-  significantLevels.push(...pivotHighs, ...pivotLows);
-  significantLevels.sort((a, b) => a - b);
-  
-  return [...new Set(significantLevels)]; // Hapus duplikat
+    return sma;
 }
 
-function analyzeStrategy(candles, timeframe = 'UNKNOWN') {
-  console.log(`🔍 Starting analysis for ${timeframe} with ${candles?.length || 0} candles`);
-  
-  // Enhanced validation for M15 and other timeframes
-  if (!candles || !Array.isArray(candles)) {
-    console.error(`❌ ${timeframe}: Invalid candles data`, candles);
-    return {
-      trend: 'Error',
-      signal: 'Error',
-      entry: 0,
-      sl: 0,
-      tp: 0,
-      rsi: 0,
-      atr: 0,
-      error: `Invalid candles data for ${timeframe}`
-    };
-  }
-
-  // Different minimum requirements for different timeframes
-  let minCandles = 50;
-  if (timeframe === 'M15') {
-    minCandles = 30; // Lower requirement for M15 due to more frequent data
-  } else if (timeframe === 'H1') {
-    minCandles = 40;
-  } else if (timeframe === 'H4') {
-    minCandles = 45;
-  }
-
-  if (candles.length < minCandles) {
-    console.warn(`⚠️ ${timeframe}: Insufficient data - got ${candles.length}, need ${minCandles}`);
-    return {
-      trend: 'Insufficient Data',
-      signal: 'No Signal',
-      entry: 0,
-      sl: 0,
-      tp: 0,
-      rsi: 0,
-      atr: 0,
-      error: `Insufficient historical data for ${timeframe} analysis (${candles.length}/${minCandles} candles)`
-    };
-  }
-
-  // Validate candle structure
-  const invalidCandles = candles.filter(c => 
-    !c || typeof c.close !== 'number' || typeof c.high !== 'number' || 
-    typeof c.low !== 'number' || c.high < c.low || c.close <= 0
-  );
-
-  if (invalidCandles.length > 0) {
-    console.error(`❌ ${timeframe}: Found ${invalidCandles.length} invalid candles`);
-    return {
-      trend: 'Error',
-      signal: 'Error',
-      entry: 0,
-      sl: 0,
-      tp: 0,
-      rsi: 0,
-      atr: 0,
-      error: `Invalid candle data structure for ${timeframe}`
-    };
-  }
-
-  const closes = candles.map(c => c.close);
-  const highs = candles.map(c => c.high);
-  const lows = candles.map(c => c.low);
-  const volumes = candles.map(c => c.volume || 0);
-
-  console.log(`📊 ${timeframe}: Processing data - Close range: ${Math.min(...closes).toFixed(5)} to ${Math.max(...closes).toFixed(5)}`);
-
-  try {
-    const currentClose = closes[closes.length - 1];
+function calculateEMA(data, period) {
+    if (data.length < period) return [];
     
-    // Calculate technical indicators with error handling
-    let currentRsi = 50;
-    let currentAtr = 0;
-    let currentSma20 = currentClose;
-    let currentSma50 = currentClose;
-
-    try {
-      const rsi = technicalindicators.RSI.calculate({
-        period: Math.min(14, Math.floor(closes.length / 3)),
-        values: closes
-      });
-      currentRsi = rsi.length > 0 ? rsi[rsi.length - 1] : 50;
-    } catch (rsiError) {
-      console.warn(`⚠️ ${timeframe}: RSI calculation failed`, rsiError.message);
-    }
-
-    try {
-      const atr = technicalindicators.ATR.calculate({
-        period: Math.min(14, Math.floor(closes.length / 3)),
-        high: highs,
-        low: lows,
-        close: closes
-      });
-      currentAtr = atr.length > 0 ? atr[atr.length - 1] : (Math.max(...highs) - Math.min(...lows)) * 0.01;
-    } catch (atrError) {
-      console.warn(`⚠️ ${timeframe}: ATR calculation failed`, atrError.message);
-      currentAtr = (Math.max(...highs) - Math.min(...lows)) * 0.01;
-    }
-
-    // Calculate moving averages for trend
-    try {
-      const sma20 = technicalindicators.SMA.calculate({
-        period: Math.min(20, Math.floor(closes.length / 2)),
-        values: closes
-      });
-      currentSma20 = sma20.length > 0 ? sma20[sma20.length - 1] : currentClose;
-
-      const sma50 = technicalindicators.SMA.calculate({
-        period: Math.min(50, Math.floor(closes.length * 0.8)),
-        values: closes
-      });
-      currentSma50 = sma50.length > 0 ? sma50[sma50.length - 1] : currentClose;
-    } catch (smaError) {
-      console.warn(`⚠️ ${timeframe}: SMA calculation failed`, smaError.message);
-    }
-
-    // Determine trend
-    let trend = 'Sideways';
-    if (currentClose > currentSma20 && currentSma20 > currentSma50) {
-      trend = 'Uptrend';
-    } else if (currentClose < currentSma20 && currentSma20 < currentSma50) {
-      trend = 'Downtrend';
-    }
-
-    // Initialize signal variables
-    let signal = 'Hold';
-    let entry = 0, sl = 0, tp = 0;
-
-    // Ensure we have a reasonable ATR value
-    if (currentAtr === 0 || isNaN(currentAtr)) {
-      currentAtr = Math.abs(currentClose * 0.001); // 0.1% of price as fallback
-    }
-
-    // 1. Tentukan level support/resistance signifikan
-    const significantLevels = findSignificantLevels(highs, lows, closes, Math.min(20, Math.floor(closes.length / 4)));
+    const ema = [];
+    const multiplier = 2 / (period + 1);
     
-    // 2. Identifikasi level breakout terdekat
-    const resistanceLevels = significantLevels.filter(l => l > currentClose);
-    const supportLevels = significantLevels.filter(l => l < currentClose);
+    // First EMA is SMA
+    const firstSMA = data.slice(0, period).reduce((acc, val) => acc + val.close, 0) / period;
+    ema.push(firstSMA);
     
-    const nearestResistance = resistanceLevels.length > 0 ? Math.min(...resistanceLevels) : currentClose * 1.02;
-    const nearestSupport = supportLevels.length > 0 ? Math.max(...supportLevels) : currentClose * 0.98;
-    
-    // 3. Deteksi breakout
-    let breakoutLevel = null;
-    let breakoutDirection = null;
-    
-    if (currentClose > nearestResistance) {
-      breakoutLevel = nearestResistance;
-      breakoutDirection = "UP";
-    } else if (currentClose < nearestSupport) {
-      breakoutLevel = nearestSupport;
-      breakoutDirection = "DOWN";
+    // Calculate subsequent EMAs
+    for (let i = period; i < data.length; i++) {
+        const currentEMA = (data[i].close * multiplier) + (ema[ema.length - 1] * (1 - multiplier));
+        ema.push(currentEMA);
     }
-
-    // 4. Konfirmasi retest dan candle
-    let confirmedBreakout = false;
     
-    if (breakoutLevel) {
-      // Cek retest (harga kembali mendekati level breakout)
-      const retestThreshold = breakoutLevel * 0.995; // 0.5% tolerance
-      const recentPrices = closes.slice(-Math.min(5, Math.floor(closes.length / 10)));
-      
-      const hasRetest = breakoutDirection === "UP" 
-        ? recentPrices.some(p => p <= breakoutLevel * 1.005 && p >= retestThreshold)
-        : recentPrices.some(p => p >= breakoutLevel * 0.995 && p <= breakoutLevel * 1.005);
-      
-      // Cek candle konfirmasi (candle besar atau volume tinggi)
-      const currentCandle = candles[candles.length - 1];
-      const candleSize = currentCandle.high - currentCandle.low;
-      
-      const recentCandles = Math.min(10, Math.floor(candles.length / 5));
-      const avgCandleSize = highs.slice(-recentCandles)
-        .map((h, i) => h - lows.slice(-recentCandles)[i])
-        .reduce((a, b) => a + b, 0) / recentCandles;
-      
-      const isLargeCandle = candleSize > avgCandleSize * 1.5;
-      const isHighVolume = volumes.length > 0 && volumes.slice(-Math.min(10, volumes.length)).length > 0
-        ? currentCandle.volume > volumes.slice(-Math.min(10, volumes.length)).reduce((a, b) => a + b, 0) / Math.min(10, volumes.length) * 1.5
-        : false;
-      
-      confirmedBreakout = hasRetest && (isLargeCandle || isHighVolume);
-    }
+    return ema;
+}
 
-    // 5. Generate sinyal berdasarkan konfirmasi breakout
-    if (confirmedBreakout) {
-      if (breakoutDirection === "UP" && trend === "Uptrend") {
-        signal = "BUY";
-        entry = currentClose;
-        sl = entry - (currentAtr * 1.5);
-        tp = entry + ((entry - sl) * 2); // RR 1:2
-      } else if (breakoutDirection === "DOWN" && trend === "Downtrend") {
-        signal = "SELL";
-        entry = currentClose;
-        sl = entry + (currentAtr * 1.5);
-        tp = entry - ((sl - entry) * 2); // RR 1:2
-      }
+function calculateRSI(data, period = 14) {
+    if (data.length < period + 1) return [];
+    
+    const gains = [];
+    const losses = [];
+    
+    // Calculate price changes
+    for (let i = 1; i < data.length; i++) {
+        const change = data[i].close - data[i - 1].close;
+        gains.push(change > 0 ? change : 0);
+        losses.push(change < 0 ? Math.abs(change) : 0);
+    }
+    
+    const rsi = [];
+    
+    // Calculate first RSI
+    const avgGain = gains.slice(0, period).reduce((acc, val) => acc + val, 0) / period;
+    const avgLoss = losses.slice(0, period).reduce((acc, val) => acc + val, 0) / period;
+    
+    if (avgLoss === 0) {
+        rsi.push(100);
     } else {
-      // Fallback signals based on RSI and trend
-      if (trend === 'Uptrend' && currentRsi < 40) {
-        signal = 'BUY';
-        entry = currentClose;
-        sl = entry - (currentAtr * 2);
-        tp = entry + (currentAtr * 3);
-      } else if (trend === 'Downtrend' && currentRsi > 60) {
-        signal = 'SELL';
-        entry = currentClose;
-        sl = entry + (currentAtr * 2);
-        tp = entry - (currentAtr * 3);
-      }
+        const rs = avgGain / avgLoss;
+        rsi.push(100 - (100 / (1 + rs)));
     }
-
-    const result = {
-      trend: trend,
-      signal: signal,
-      entry: Number(entry.toFixed(5)),
-      sl: Number(sl.toFixed(5)),
-      tp: Number(tp.toFixed(5)),
-      rsi: Number(currentRsi.toFixed(2)),
-      atr: Number(currentAtr.toFixed(5)),
-      breakout_level: breakoutLevel ? Number(breakoutLevel.toFixed(5)) : null,
-      breakout_direction: breakoutDirection,
-      breakout_confirmed: confirmedBreakout
-    };
-
-    console.log(`✅ ${timeframe}: Analysis completed successfully`, result);
-    return result;
-
-  } catch (error) {
-    console.error(`❌ ${timeframe}: Strategy analysis error:`, error);
-    return {
-      trend: 'Error',
-      signal: 'Error',
-      entry: 0,
-      sl: 0,
-      tp: 0,
-      rsi: 0,
-      atr: 0,
-      error: `${timeframe} analysis failed: ${error.message}`
-    };
-  }
+    
+    // Calculate subsequent RSI values
+    let currentAvgGain = avgGain;
+    let currentAvgLoss = avgLoss;
+    
+    for (let i = period; i < gains.length; i++) {
+        currentAvgGain = ((currentAvgGain * (period - 1)) + gains[i]) / period;
+        currentAvgLoss = ((currentAvgLoss * (period - 1)) + losses[i]) / period;
+        
+        if (currentAvgLoss === 0) {
+            rsi.push(100);
+        } else {
+            const rs = currentAvgGain / currentAvgLoss;
+            rsi.push(100 - (100 / (1 + rs)));
+        }
+    }
+    
+    return rsi;
 }
 
-// CRITICAL: This export statement must be at the end of your strategy.js file
-module.exports = { analyzeStrategy };
+function calculateMACD(data, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+    const fastEMA = calculateEMA(data, fastPeriod);
+    const slowEMA = calculateEMA(data, slowPeriod);
+    
+    if (fastEMA.length === 0 || slowEMA.length === 0) return { macd: [], signal: [], histogram: [] };
+    
+    const macdLine = [];
+    const startIndex = slowPeriod - fastPeriod;
+    
+    for (let i = 0; i < slowEMA.length; i++) {
+        macdLine.push(fastEMA[i + startIndex] - slowEMA[i]);
+    }
+    
+    // Calculate signal line (EMA of MACD)
+    const macdData = macdLine.map((value, index) => ({ close: value }));
+    const signalLine = calculateEMA(macdData, signalPeriod);
+    
+    // Calculate histogram
+    const histogram = [];
+    for (let i = 0; i < signalLine.length; i++) {
+        histogram.push(macdLine[i + signalPeriod - 1] - signalLine[i]);
+    }
+    
+    return {
+        macd: macdLine,
+        signal: signalLine,
+        histogram: histogram
+    };
+}
+
+function detectTrend(data) {
+    if (data.length < 20) return 'INSUFFICIENT_DATA';
+    
+    const sma20 = calculateSMA(data, 20);
+    const sma50 = calculateSMA(data, 50);
+    
+    if (sma20.length === 0 || sma50.length === 0) return 'INSUFFICIENT_DATA';
+    
+    const currentSMA20 = sma20[sma20.length - 1];
+    const currentSMA50 = sma50[sma50.length - 1];
+    const currentPrice = data[data.length - 1].close;
+    
+    if (currentPrice > currentSMA20 && currentSMA20 > currentSMA50) {
+        return 'UPTREND';
+    } else if (currentPrice < currentSMA20 && currentSMA20 < currentSMA50) {
+        return 'DOWNTREND';
+    } else {
+        return 'SIDEWAYS';
+    }
+}
+
+function generateSignal(data) {
+    if (data.length < 50) return 'INSUFFICIENT_DATA';
+    
+    const rsi = calculateRSI(data);
+    const macd = calculateMACD(data);
+    const trend = detectTrend(data);
+    
+    if (rsi.length === 0 || macd.macd.length === 0) return 'INSUFFICIENT_DATA';
+    
+    const currentRSI = rsi[rsi.length - 1];
+    const currentMACD = macd.macd[macd.macd.length - 1];
+    const currentSignal = macd.signal[macd.signal.length - 1];
+    const currentHistogram = macd.histogram[macd.histogram.length - 1];
+    
+    let signals = [];
+    
+    // RSI signals
+    if (currentRSI < 30) signals.push('RSI_OVERSOLD');
+    if (currentRSI > 70) signals.push('RSI_OVERBOUGHT');
+    
+    // MACD signals
+    if (currentMACD > currentSignal && currentHistogram > 0) signals.push('MACD_BULLISH');
+    if (currentMACD < currentSignal && currentHistogram < 0) signals.push('MACD_BEARISH');
+    
+    // Trend-based signals
+    if (trend === 'UPTREND' && currentRSI < 50) signals.push('TREND_BUY');
+    if (trend === 'DOWNTREND' && currentRSI > 50) signals.push('TREND_SELL');
+    
+    // Determine overall signal
+    const bullishSignals = signals.filter(s => s.includes('BULLISH') || s.includes('BUY') || s.includes('OVERSOLD')).length;
+    const bearishSignals = signals.filter(s => s.includes('BEARISH') || s.includes('SELL') || s.includes('OVERBOUGHT')).length;
+    
+    if (bullishSignals > bearishSignals) {
+        return 'BUY';
+    } else if (bearishSignals > bullishSignals) {
+        return 'SELL';
+    } else {
+        return 'HOLD';
+    }
+}
+
+function analyzeStrategy(candles, timeframe) {
+    try {
+        if (!candles || candles.length === 0) {
+            return {
+                error: 'No candle data provided',
+                timeframe: timeframe
+            };
+        }
+
+        const trend = detectTrend(candles);
+        const signal = generateSignal(candles);
+        const rsi = calculateRSI(candles);
+        const macd = calculateMACD(candles);
+        
+        const currentPrice = candles[candles.length - 1].close;
+        const previousPrice = candles.length > 1 ? candles[candles.length - 2].close : currentPrice;
+        const priceChange = currentPrice - previousPrice;
+        const priceChangePercent = ((priceChange / previousPrice) * 100).toFixed(2);
+        
+        return {
+            timeframe: timeframe,
+            trend: trend,
+            signal: signal,
+            price: {
+                current: currentPrice,
+                change: priceChange,
+                changePercent: priceChangePercent
+            },
+            indicators: {
+                rsi: rsi.length > 0 ? rsi[rsi.length - 1].toFixed(2) : 'N/A',
+                macd: {
+                    macd: macd.macd.length > 0 ? macd.macd[macd.macd.length - 1].toFixed(4) : 'N/A',
+                    signal: macd.signal.length > 0 ? macd.signal[macd.signal.length - 1].toFixed(4) : 'N/A',
+                    histogram: macd.histogram.length > 0 ? macd.histogram[macd.histogram.length - 1].toFixed(4) : 'N/A'
+                }
+            },
+            dataPoints: candles.length,
+            timestamp: new Date().toISOString()
+        };
+        
+    } catch (error) {
+        console.error(`Error in strategy analysis for ${timeframe}:`, error);
+        return {
+            error: error.message,
+            timeframe: timeframe,
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+module.exports = {
+    analyzeStrategy,
+    calculateSMA,
+    calculateEMA,
+    calculateRSI,
+    calculateMACD,
+    detectTrend,
+    generateSignal
+};
