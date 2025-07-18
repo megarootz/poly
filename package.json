@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Trading API using Polygon.io for forex data",
   "main": "app.js",
+  "type": "module",
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js"
