@@ -1,24 +1,34 @@
 {
   "name": "polygon-trading-api",
   "version": "1.0.0",
-  "description": "Trading API using Polygon.io for forex data",
+  "description": "Trading analysis API using Polygon.io",
   "main": "app.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [
+    "trading",
+    "polygon.io",
+    "api",
+    "financial",
+    "analysis"
+  ],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
+    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "express": "^4.18.3",
-    "moment": "^2.30.1",
-    "node-fetch": "^3.3.2",
-    "technicalindicators": "^3.1.0"
+    "moment": "^2.29.4",
+    "axios": "^1.6.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
